@@ -1,0 +1,22 @@
+{
+  "name": "meridian",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Market intelligence dashboard for residential RE credit underwriting",
+  "packageManager": "pnpm@9.12.0",
+  "engines": {
+    "node": ">=20.0.0",
+    "pnpm": ">=9.0.0"
+  },
+  "scripts": {
+    "dev": "pnpm --filter @meridian/web dev",
+    "dev:api": "cd apps/api && uv run uvicorn meridian.main:app --reload --port 8000",
+    "build": "pnpm --filter @meridian/web build",
+    "lint": "pnpm --filter @meridian/web lint",
+    "typecheck": "pnpm --filter @meridian/web typecheck",
+    "gen:types": "node scripts/gen-types.mjs"
+  },
+  "devDependencies": {
+    "openapi-typescript": "^7.4.0"
+  }
+}

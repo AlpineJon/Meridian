@@ -1,0 +1,114 @@
+"use client";
+
+import { useMemo, useState } from "react";
+import { LeftRail } from "@/components/LeftRail";
+import { TopBar } from "@/components/TopBar";
+import { CreditSummary } from "@/components/CreditSummary";
+import { SupplyPanel } from "@/components/SupplyPanel";
+import { PricingPanel } from "@/components/PricingPanel";
+import { DemoPanel } from "@/components/DemoPanel";
+import { ComparisonView } from "@/components/ComparisonView";
+import { FreshnessFooter } from "@/components/FreshnessFooter";
+import { MapView } from "@/components/MapView";
+import { findGeo, getSnapshot, GEOGRAPHIES } from "@/lib/seed";
+
+const TABS = [
+  { id: "credit", label: "Credit summary" },
+  { id: "supply", label: "Supply & inventory" },
+  { id: "pricing", label: "Pricing & demand" },
+  { id: "demo", label: "Demographics" },
+  { id: "compare", label: "Comparison" },
+  { id: "map", label: "Map" },
+];
+
+export default function Page() {
+  const [selectedGeoid, setSelectedGeoid] = useState("12940"); // Baton Rouge MSA
+  const [recent, setRecent] = useState<string[]>(["12940", "70809", "13820"]);
+  const [tab, setTab] = useState("credit");
+
+  const geo = findGeo(selectedGeoid)!;
+  const snap = getSnapshot(selectedGeoid);
+
+  const parentChain = useMemo(() => {
+    const chain: { name: string; geoid: string }[] = [];
+    let cur = geo;
+    while (cur.parent) {
+      const parent = GEOGRAPHIES.find((g) => g.geoid === cur.parent);
+      if (!parent) break;
+      chain.unshift({ name: parent.name, geoid: parent.geoid });
+      cur = parent;
+    }
+    return chain;
+  }, [geo]);
+
+  const handleSelect = (geoid: string) => {
+    setSelectedGeoid(geoid);
+    setRecent((prev) => [geoid, ...prev.filter((x) => x !== geoid)].slice(0, 5));
+  };
+
+  return (
+    <div className="flex h-screen overflow-hidden">
+      <LeftRail selectedGeoid={selectedGeoid} onSelect={handleSelect} recent={recent} />
+      <main className="flex flex-1 flex-col overflow-hidden">
+        <TopBar
+          geoName={geo.name}
+          geoLevel={geo.level}
+          geoid={geo.geoid}
+          parentChain={parentChain}
+          tabs={TABS}
+          activeTab={tab}
+          onTabChange={setTab}
+        />
+        <div className="flex-1 overflow-y-auto bg-ink-50 p-4">
+          {tab === "map" ? (
+            <MapView selectedGeoid={selectedGeoid} onSelect={handleSelect} />
+          ) : tab === "compare" ? (
+            <ComparisonView highlightGeoid={selectedGeoid} />
+          ) : !snap ? (
+            <div className="panel mx-auto mt-12 max-w-md p-8 text-center">
+              <h2 className="text-[14px] font-semibold text-ink-900">No snapshot for this geo yet</h2>
+              <p className="mt-2 text-[12px] text-ink-500">
+                Seed data covers Baton Rouge MSA, comparison MSAs (Birmingham, Memphis, Jackson,
+                Mobile, Shreveport), and ZIP 70809. The full ingestion pipeline (Phase 2) will
+                populate every geography from upstream sources.
+              </p>
+              <p className="mt-3 text-[11px] text-ink-400">
+                Try the <span className="font-semibold">Comparison</span> tab — it works regardless
+                of selection.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {tab === "credit" && (
+                <>
+                  <CreditSummary snap={snap} />
+                  <div className="grid grid-cols-3 gap-4">
+                    <SupplyPanel snap={snap} />
+                    <PricingPanel snap={snap} />
+                    <DemoPanel snap={snap} />
+                  </div>
+                </>
+              )}
+              {tab === "supply" && (
+                <div className="grid grid-cols-2 gap-4">
+                  <SupplyPanel snap={snap} />
+                </div>
+              )}
+              {tab === "pricing" && (
+                <div className="grid grid-cols-2 gap-4">
+                  <PricingPanel snap={snap} />
+                </div>
+              )}
+              {tab === "demo" && (
+                <div className="grid grid-cols-2 gap-4">
+                  <DemoPanel snap={snap} />
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+        {snap && tab !== "compare" && tab !== "map" ? <FreshnessFooter snap={snap} /> : null}
+      </main>
+    </div>
+  );
+}

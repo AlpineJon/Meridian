@@ -1,0 +1,39 @@
+# Node
+node_modules/
+.next/
+.turbo/
+.pnpm-store/
+dist/
+build/
+.env
+.env.local
+.env.*.local
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+*.egg-info/
+.python-version
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# Data
+data/raw/
+data/cache/
+*.parquet
+*.duckdb
+seed/_downloaded/
+
+# Local secrets
+.env*
+!.env.example

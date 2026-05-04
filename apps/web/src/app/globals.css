@@ -1,0 +1,45 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    color-scheme: light;
+  }
+  html,
+  body {
+    @apply bg-ink-50 text-ink-900;
+    font-feature-settings: "tnum" 1, "cv11" 1, "ss01" 1;
+  }
+  body {
+    @apply text-[13px] leading-5 antialiased;
+  }
+  /* Tabular numbers everywhere by default — credit officers scan numbers */
+  .num,
+  td.num,
+  .tabular {
+    font-variant-numeric: tabular-nums;
+    @apply font-mono;
+  }
+}
+
+@layer components {
+  .panel {
+    @apply rounded-md border border-ink-200 bg-white;
+  }
+  .panel-header {
+    @apply flex items-center justify-between border-b border-ink-200 px-3 py-2;
+  }
+  .panel-title {
+    @apply text-[11px] font-semibold uppercase tracking-wider text-ink-500;
+  }
+  .panel-question {
+    @apply text-2xs italic text-ink-400;
+  }
+  .kbd {
+    @apply rounded border border-ink-200 bg-ink-50 px-1 py-0.5 font-mono text-2xs text-ink-500;
+  }
+  .grid-divider > * + * {
+    @apply border-l border-ink-200;
+  }
+}
