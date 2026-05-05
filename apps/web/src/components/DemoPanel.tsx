@@ -3,6 +3,8 @@ import { fmtNum, fmtPct, fmtPctDelta, fmtUsd } from "@/lib/format";
 import { Panel } from "./Panel";
 import { MetricRow } from "./MetricRow";
 
+const isNum = (n: unknown): n is number => typeof n === "number" && Number.isFinite(n);
+
 export function DemoPanel({ snap }: { snap: GeoSnapshot }) {
   const d = snap.demo;
   return (
@@ -15,20 +17,38 @@ export function DemoPanel({ snap }: { snap: GeoSnapshot }) {
       <MetricRow
         label="5-yr pop growth"
         value={fmtPctDelta(d.popGrowth5y)}
-        delta={{
-          text: d.popGrowth5y > 0.01 ? "growing" : d.popGrowth5y > 0 ? "flat" : "shrinking",
-          tone: d.popGrowth5y > 0.01 ? "good" : d.popGrowth5y > 0 ? "neutral" : "bad",
-        }}
+        delta={
+          isNum(d.popGrowth5y)
+            ? {
+                text: d.popGrowth5y > 0.01 ? "growing" : d.popGrowth5y > 0 ? "flat" : "shrinking",
+                tone: d.popGrowth5y > 0.01 ? "good" : d.popGrowth5y > 0 ? "neutral" : "bad",
+              }
+            : undefined
+        }
       />
       <MetricRow label="Households" value={fmtNum(d.households)} />
       <MetricRow label="Median household income" value={fmtUsd(d.medianIncome)} />
       <MetricRow
         label="Unemployment"
         value={fmtPct(d.unemploymentRate, 1)}
-        delta={{
-          text: d.unemploymentRate < 0.035 ? "tight" : d.unemploymentRate < 0.045 ? "normal" : "loose",
-          tone: d.unemploymentRate < 0.035 ? "good" : d.unemploymentRate < 0.045 ? "neutral" : "bad",
-        }}
+        delta={
+          isNum(d.unemploymentRate)
+            ? {
+                text:
+                  d.unemploymentRate < 0.035
+                    ? "tight"
+                    : d.unemploymentRate < 0.045
+                      ? "normal"
+                      : "loose",
+                tone:
+                  d.unemploymentRate < 0.035
+                    ? "good"
+                    : d.unemploymentRate < 0.045
+                      ? "neutral"
+                      : "bad",
+              }
+            : undefined
+        }
       />
       <MetricRow label="Owner-occupied %" value={fmtPct(d.ownerOccupiedPct)} />
       <MetricRow label="Renter-occupied %" value={fmtPct(d.renterOccupiedPct)} />
@@ -37,10 +57,14 @@ export function DemoPanel({ snap }: { snap: GeoSnapshot }) {
       <MetricRow
         label="Rent-to-income"
         value={fmtPct(d.rentToIncome)}
-        delta={{
-          text: d.rentToIncome > 0.3 ? "burdened" : "healthy",
-          tone: d.rentToIncome > 0.3 ? "bad" : "good",
-        }}
+        delta={
+          isNum(d.rentToIncome)
+            ? {
+                text: d.rentToIncome > 0.3 ? "burdened" : "healthy",
+                tone: d.rentToIncome > 0.3 ? "bad" : "good",
+              }
+            : undefined
+        }
       />
     </Panel>
   );

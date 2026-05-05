@@ -245,11 +245,14 @@ async def build_snapshot(session: AsyncSession, geoid: str) -> dict | None:
         return v[1] if v else None
 
     # ---- shape signals ----
+    def to_int_or_none(v):
+        return int(v) if v is not None else None
+
     signals = {
-        SIGNAL_KEYS["liquidity_score"]: int(num("liquidity_score") or 0),
-        SIGNAL_KEYS["demand_pressure"]: int(num("demand_pressure") or 0),
-        SIGNAL_KEYS["distress_indicator"]: int(num("distress_indicator") or 0),
-        SIGNAL_KEYS["market_tier"]: text_val("market_tier") or "?",
+        SIGNAL_KEYS["liquidity_score"]: to_int_or_none(num("liquidity_score")),
+        SIGNAL_KEYS["demand_pressure"]: to_int_or_none(num("demand_pressure")),
+        SIGNAL_KEYS["distress_indicator"]: to_int_or_none(num("distress_indicator")),
+        SIGNAL_KEYS["market_tier"]: text_val("market_tier"),
         "rationale": {
             "liquidity": text_val("rationale_liquidity") or "",
             "demand": text_val("rationale_demand") or "",

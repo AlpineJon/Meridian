@@ -25,6 +25,22 @@ export async function fetchHealth(): Promise<{ ok: boolean; db: { ok: boolean } 
   return res.json();
 }
 
+export type ApiGeography = {
+  geoid: string;
+  level: "state" | "msa" | "place" | "zip" | "county";
+  name: string;
+  state: string | null;
+  parent: string | null;
+  population: number | null;
+};
+
+export async function fetchGeographies(): Promise<ApiGeography[]> {
+  const res = await fetch(`${API_BASE}/geographies`, { cache: "no-store" });
+  if (!res.ok) throw new Error(`geographies failed: ${res.status}`);
+  const j = (await res.json()) as { geographies: ApiGeography[] };
+  return j.geographies;
+}
+
 export type GeoSummary = {
   geoid: string;
   level: "state" | "msa" | "place" | "zip" | "county";

@@ -1,4 +1,10 @@
-export const fmtUsd = (n: number, opts?: { compact?: boolean }) => {
+const NULL_DASH = "—";
+
+const isNum = (n: unknown): n is number =>
+  typeof n === "number" && Number.isFinite(n);
+
+export const fmtUsd = (n: number | null | undefined, opts?: { compact?: boolean }) => {
+  if (!isNum(n)) return NULL_DASH;
   if (opts?.compact) {
     if (Math.abs(n) >= 1_000_000) return `$${(n / 1_000_000).toFixed(2)}M`;
     if (Math.abs(n) >= 1_000) return `$${(n / 1_000).toFixed(0)}K`;
@@ -10,18 +16,24 @@ export const fmtUsd = (n: number, opts?: { compact?: boolean }) => {
   }).format(n);
 };
 
-export const fmtUsdSqft = (n: number) => `$${n.toFixed(0)}/sf`;
+export const fmtUsdSqft = (n: number | null | undefined) =>
+  isNum(n) ? `$${n.toFixed(0)}/sf` : NULL_DASH;
 
-export const fmtPct = (n: number, decimals = 1) =>
-  `${(n * 100).toFixed(decimals)}%`;
+export const fmtPct = (n: number | null | undefined, decimals = 1) =>
+  isNum(n) ? `${(n * 100).toFixed(decimals)}%` : NULL_DASH;
 
-export const fmtPctDelta = (n: number, decimals = 1) => {
+export const fmtPctDelta = (n: number | null | undefined, decimals = 1) => {
+  if (!isNum(n)) return NULL_DASH;
   const v = (n * 100).toFixed(decimals);
   if (n > 0) return `+${v}%`;
   return `${v}%`;
 };
 
-export const fmtNum = (n: number, opts?: { compact?: boolean; decimals?: number }) => {
+export const fmtNum = (
+  n: number | null | undefined,
+  opts?: { compact?: boolean; decimals?: number },
+) => {
+  if (!isNum(n)) return NULL_DASH;
   if (opts?.compact) {
     if (Math.abs(n) >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
     if (Math.abs(n) >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
@@ -31,8 +43,11 @@ export const fmtNum = (n: number, opts?: { compact?: boolean; decimals?: number 
   }).format(n);
 };
 
-export const fmtDays = (n: number) => `${n}d`;
-export const fmtMonths = (n: number) => `${n.toFixed(1)} mo`;
+export const fmtDays = (n: number | null | undefined) =>
+  isNum(n) ? `${n}d` : NULL_DASH;
+
+export const fmtMonths = (n: number | null | undefined) =>
+  isNum(n) ? `${n.toFixed(1)} mo` : NULL_DASH;
 
 /** ISO month "2026-04" -> "Apr '26" */
 export const fmtMonthShort = (iso: string) => {

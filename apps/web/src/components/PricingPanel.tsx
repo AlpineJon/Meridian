@@ -4,6 +4,8 @@ import { Panel } from "./Panel";
 import { MetricRow } from "./MetricRow";
 import { PriceTrendChart } from "./PriceTrendChart";
 
+const isNum = (n: unknown): n is number => typeof n === "number" && Number.isFinite(n);
+
 export function PricingPanel({ snap }: { snap: GeoSnapshot }) {
   const p = snap.pricing;
   return (
@@ -20,27 +22,41 @@ export function PricingPanel({ snap }: { snap: GeoSnapshot }) {
       <MetricRow
         label="Median sale price"
         value={fmtUsd(p.medianSalePrice)}
-        delta={{
-          text: fmtPctDelta(p.salePriceYoY) + " YoY",
-          tone: p.salePriceYoY > 0.02 ? "good" : p.salePriceYoY < 0 ? "bad" : "neutral",
-        }}
+        delta={
+          isNum(p.salePriceYoY)
+            ? {
+                text: fmtPctDelta(p.salePriceYoY) + " YoY",
+                tone: p.salePriceYoY > 0.02 ? "good" : p.salePriceYoY < 0 ? "bad" : "neutral",
+              }
+            : undefined
+        }
       />
       <MetricRow
         label="3-yr CAGR"
         value={fmtPct(p.salePriceCagr3y)}
-        delta={{
-          text: p.salePriceCagr3y > 0.03 ? "healthy" : "soft",
-          tone: p.salePriceCagr3y > 0.03 ? "good" : "neutral",
-        }}
+        delta={
+          isNum(p.salePriceCagr3y)
+            ? {
+                text: p.salePriceCagr3y > 0.03 ? "healthy" : "soft",
+                tone: p.salePriceCagr3y > 0.03 ? "good" : "neutral",
+              }
+            : undefined
+        }
       />
       <MetricRow label="Median list price" value={fmtUsd(p.medianListPrice)} />
       <MetricRow
         label="Sale-to-list ratio"
         value={fmtPct(p.saleToListRatio, 1)}
-        delta={{
-          text: p.saleToListRatio > 0.98 ? "strong" : p.saleToListRatio > 0.95 ? "soft" : "weak",
-          tone: p.saleToListRatio > 0.98 ? "good" : p.saleToListRatio > 0.95 ? "neutral" : "bad",
-        }}
+        delta={
+          isNum(p.saleToListRatio)
+            ? {
+                text:
+                  p.saleToListRatio > 0.98 ? "strong" : p.saleToListRatio > 0.95 ? "soft" : "weak",
+                tone:
+                  p.saleToListRatio > 0.98 ? "good" : p.saleToListRatio > 0.95 ? "neutral" : "bad",
+              }
+            : undefined
+        }
       />
       <MetricRow label="$/sqft (sold)" value={fmtUsdSqft(p.pricePerSqftSold)} />
       <MetricRow label="$/sqft (list)" value={fmtUsdSqft(p.pricePerSqftList)} />

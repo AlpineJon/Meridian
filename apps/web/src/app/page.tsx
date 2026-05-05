@@ -11,8 +11,7 @@ import { DemoPanel } from "@/components/DemoPanel";
 import { ComparisonView } from "@/components/ComparisonView";
 import { FreshnessFooter } from "@/components/FreshnessFooter";
 import { MapView } from "@/components/MapView";
-import { findGeo, GEOGRAPHIES } from "@/lib/seed";
-import { fetchSnapshot } from "@/lib/api";
+import { fetchGeographies, fetchSnapshot, type ApiGeography } from "@/lib/api";
 
 const TABS = [
   { id: "credit", label: "Credit summary" },
@@ -28,25 +27,39 @@ export default function Page() {
   const [recent, setRecent] = useState<string[]>(["12940", "70809", "13820"]);
   const [tab, setTab] = useState("credit");
 
-  const geo = findGeo(selectedGeoid)!;
+  const geosQuery = useQuery({
+    queryKey: ["geographies"],
+    queryFn: fetchGeographies,
+    staleTime: 5 * 60_000,
+  });
+  const allGeos = geosQuery.data ?? [];
+  const geoById = useMemo(() => {
+    const m = new Map<string, ApiGeography>();
+    for (const g of allGeos) m.set(g.geoid, g);
+    return m;
+  }, [allGeos]);
+
+  const geo = geoById.get(selectedGeoid);
 
   const snapQuery = useQuery({
     queryKey: ["snapshot", selectedGeoid],
     queryFn: () => fetchSnapshot(selectedGeoid),
+    enabled: !!geo,
   });
   const snap = snapQuery.data ?? null;
 
   const parentChain = useMemo(() => {
+    if (!geo) return [];
     const chain: { name: string; geoid: string }[] = [];
-    let cur = geo;
-    while (cur.parent) {
-      const parent = GEOGRAPHIES.find((g) => g.geoid === cur.parent);
+    let cur: ApiGeography | undefined = geo;
+    while (cur?.parent) {
+      const parent = geoById.get(cur.parent);
       if (!parent) break;
       chain.unshift({ name: parent.name, geoid: parent.geoid });
       cur = parent;
     }
     return chain;
-  }, [geo]);
+  }, [geo, geoById]);
 
   const handleSelect = (geoid: string) => {
     setSelectedGeoid(geoid);
@@ -58,9 +71,9 @@ export default function Page() {
       <LeftRail selectedGeoid={selectedGeoid} onSelect={handleSelect} recent={recent} />
       <main className="flex flex-1 flex-col overflow-hidden">
         <TopBar
-          geoName={geo.name}
-          geoLevel={geo.level}
-          geoid={geo.geoid}
+          geoName={geo?.name ?? "Loading…"}
+          geoLevel={geo?.level ?? ""}
+          geoid={geo?.geoid ?? selectedGeoid}
           parentChain={parentChain}
           tabs={TABS}
           activeTab={tab}

@@ -1,5 +1,5 @@
 import { SignalCard } from "./SignalCard";
-import type { GeoSnapshot } from "@/lib/seed";
+import type { GeoSnapshot, MarketTier } from "@/lib/seed";
 
 export function CreditSummary({ snap }: { snap: GeoSnapshot }) {
   const s = snap.signals;
@@ -21,33 +21,39 @@ export function CreditSummary({ snap }: { snap: GeoSnapshot }) {
           kind="liquidity"
           label="Liquidity score"
           question="How fast does inventory clear?"
-          value={s.liquidityScore}
-          raw={s.liquidityScore}
-          rationale={s.rationale.liquidity}
+          value={s.liquidityScore ?? null}
+          raw={s.liquidityScore ?? null}
+          rationale={s.rationale?.liquidity ?? ""}
         />
         <SignalCard
           kind="demand"
           label="Demand pressure"
           question="Is demand outpacing or trailing supply?"
-          value={s.demandPressure > 0 ? `+${s.demandPressure}` : `${s.demandPressure}`}
-          raw={s.demandPressure}
-          rationale={s.rationale.demand}
+          value={
+            s.demandPressure === null || s.demandPressure === undefined
+              ? null
+              : s.demandPressure > 0
+                ? `+${s.demandPressure}`
+                : `${s.demandPressure}`
+          }
+          raw={s.demandPressure ?? null}
+          rationale={s.rationale?.demand ?? ""}
         />
         <SignalCard
           kind="distress"
           label="Distress indicator"
           question="Are price cuts and DOM expanding?"
-          value={s.distressIndicator}
-          raw={s.distressIndicator}
-          rationale={s.rationale.distress}
+          value={s.distressIndicator ?? null}
+          raw={s.distressIndicator ?? null}
+          rationale={s.rationale?.distress ?? ""}
         />
         <SignalCard
           kind="tier"
           label="Market tier"
           question="What credit policy applies?"
-          value={s.marketTier}
-          raw={s.marketTier}
-          rationale={s.rationale.tier}
+          value={s.marketTier ?? null}
+          raw={(s.marketTier as MarketTier | null) ?? null}
+          rationale={s.rationale?.tier ?? ""}
         />
       </div>
     </section>

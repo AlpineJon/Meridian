@@ -4,15 +4,19 @@ import type { MarketTier } from "@/lib/seed";
 type Props = {
   label: string;
   question: string;
-  value: string | number;
+  value: string | number | null;
   /** -100..100 for demand pressure, 0..100 for the others, "A"|"B"|"C"|"D" for tier */
-  raw: number | MarketTier;
+  raw: number | MarketTier | null;
   rationale: string;
   /** "liquidity" | "demand" | "distress" | "tier" — drives interpretation of raw */
   kind: "liquidity" | "demand" | "distress" | "tier";
 };
 
-function toneFor(kind: Props["kind"], raw: number | MarketTier): "good" | "warn" | "bad" {
+function toneFor(
+  kind: Props["kind"],
+  raw: number | MarketTier | null,
+): "good" | "warn" | "bad" | "neutral" {
+  if (raw === null || raw === undefined) return "neutral";
   if (kind === "tier") {
     const t = raw as MarketTier;
     if (t === "A") return "good";
@@ -43,17 +47,22 @@ export function SignalCard({ label, question, value, raw, rationale, kind }: Pro
     good: "border-signal-good/40 bg-signal-goodBg/30",
     warn: "border-signal-warn/40 bg-signal-warnBg/30",
     bad: "border-signal-bad/40 bg-signal-badBg/30",
+    neutral: "border-ink-200 bg-ink-50/50",
   }[tone];
   const dotClasses = {
     good: "bg-signal-good",
     warn: "bg-signal-warn",
     bad: "bg-signal-bad",
+    neutral: "bg-ink-300",
   }[tone];
   const valueClasses = {
     good: "text-signal-good",
     warn: "text-signal-warn",
     bad: "text-signal-bad",
+    neutral: "text-ink-400",
   }[tone];
+
+  const display = value === null || value === undefined ? "—" : value;
 
   return (
     <div className={cn("panel border", toneClasses)}>
@@ -66,9 +75,16 @@ export function SignalCard({ label, question, value, raw, rationale, kind }: Pro
         </div>
       </div>
       <div className="px-3 py-3">
-        <div className={cn("font-mono text-3xl font-semibold tabular-nums", valueClasses)}>{value}</div>
+        <div className={cn("font-mono text-3xl font-semibold tabular-nums", valueClasses)}>{display}</div>
         <p className="mt-1 text-2xs italic text-ink-500">{question}</p>
-        <p className="mt-2 text-[12px] leading-snug text-ink-700">{rationale}</p>
+        <p className="mt-2 text-[12px] leading-snug text-ink-700">
+          {rationale || (
+            <span className="italic text-ink-400">
+              No composite signal computed for this geography (requires supply + pricing inputs from
+              Realtor.com / BPS adapters — Phase 3).
+            </span>
+          )}
+        </p>
       </div>
     </div>
   );
