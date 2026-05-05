@@ -34,11 +34,19 @@ async def run() -> None:
     msa_rows = await adapter.fetch_all_msas(DEFAULT_YEAR)
     print(f"    got {len(msa_rows)} MSA metric rows")
 
-    print("  fetching all counties (this takes ~30s for ~3,200 counties)…")
+    print("  fetching all counties (~3,200)…")
     county_rows = await adapter.fetch_all_counties(DEFAULT_YEAR)
     print(f"    got {len(county_rows)} county metric rows")
 
-    all_rows = state_rows + msa_rows + county_rows
+    print("  fetching all places (~32k cities/CDPs, may take ~60s)…")
+    place_rows = await adapter.fetch_all_places(DEFAULT_YEAR)
+    print(f"    got {len(place_rows)} place metric rows")
+
+    print("  fetching all ZCTAs (~33k ZIPs, may take ~60s)…")
+    zcta_rows = await adapter.fetch_all_zctas(DEFAULT_YEAR)
+    print(f"    got {len(zcta_rows)} ZCTA metric rows")
+
+    all_rows = state_rows + msa_rows + county_rows + place_rows + zcta_rows
     print(f"\n  upserting {len(all_rows)} total rows into Supabase…")
 
     with psycopg.connect(_sync_url()) as conn:

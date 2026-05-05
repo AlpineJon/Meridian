@@ -49,8 +49,11 @@ class BaseAdapter(ABC):
         """
         ...
 
+    BATCH_SIZE = 5000
+
     def upsert_rows(self, conn: psycopg.Connection, rows: Iterable[FetchedRow]) -> int:
-        """Bulk upsert rows into `metrics`. Returns count upserted."""
+        """Bulk upsert rows into `metrics`. Batched + commits per batch
+        so a 1M-row payload doesn't blow the Supabase pooler connection."""
         rows = list(rows)
         if not rows:
             return 0
@@ -66,8 +69,9 @@ class BaseAdapter(ABC):
                 source = EXCLUDED.source,
                 ingested_at = now()
         """
-        params = [
-            {
+
+        def _to_param(r: FetchedRow) -> dict:
+            return {
                 "geoid": r.geoid,
                 "metric_key": r.metric_key,
                 "period_end": r.period_end,
@@ -76,11 +80,20 @@ class BaseAdapter(ABC):
                 "value_str": r.value_str,
                 "source": self.source.value,
             }
-            for r in rows
-        ]
-        with conn.cursor() as cur:
-            cur.executemany(sql, params)
-        return len(params)
+
+        total = 0
+        n = len(rows)
+        for i in range(0, n, self.BATCH_SIZE):
+            chunk = rows[i : i + self.BATCH_SIZE]
+            params = [_to_param(r) for r in chunk]
+            with conn.cursor() as cur:
+                cur.executemany(sql, params)
+            conn.commit()
+            total += len(chunk)
+            if (i // self.BATCH_SIZE) % 20 == 0 and i > 0:
+                pct = 100 * total / n
+                print(f"    ... {total:,}/{n:,} ({pct:.0f}%)")
+        return total
 
     def log_run(
         self,

@@ -88,32 +88,51 @@ class CensusACSAdapter(BaseAdapter):
             year, "for=county:*&in=state:*", geo_field="county", county_mode=True
         )
 
+    async def fetch_all_zctas(self, year: int = DEFAULT_YEAR) -> list[FetchedRow]:
+        return await self._fetch_bulk(
+            year,
+            "for=zip code tabulation area:*",
+            geo_field="zip code tabulation area",
+        )
+
+    async def fetch_all_places(self, year: int = DEFAULT_YEAR) -> list[FetchedRow]:
+        return await self._fetch_bulk(
+            year,
+            "for=place:*&in=state:*",
+            geo_field="place",
+            place_mode=True,
+        )
+
     async def _fetch_bulk(
-        self, year: int, raw_query: str, *, geo_field: str, county_mode: bool = False
+        self,
+        year: int,
+        raw_query: str,
+        *,
+        geo_field: str,
+        county_mode: bool = False,
+        place_mode: bool = False,
     ) -> list[FetchedRow]:
         url = f"{self.BASE_URL}/{year}/acs/acs5"
-        # Build params dict from the raw query string
         from urllib.parse import parse_qsl
         params = dict(parse_qsl(raw_query))
         params["get"] = ",".join(VARIABLES.keys())
         if self.api_key:
             params["key"] = self.api_key
 
-        async with httpx.AsyncClient(timeout=60.0) as client:
+        async with httpx.AsyncClient(timeout=180.0) as client:
             r = await client.get(url, params=params)
             r.raise_for_status()
             data = r.json()
 
         headers, *rows_raw = data
-        geo_idx = headers.index(geo_field)
-        # For counties, geoid is state_fips + county_fips
-        state_idx = headers.index("state") if county_mode else None
 
         out: list[FetchedRow] = []
         for row in rows_raw:
             raw = dict(zip(headers, row, strict=False))
             if county_mode:
                 geoid = (raw["state"] or "").zfill(2) + (raw["county"] or "").zfill(3)
+            elif place_mode:
+                geoid = (raw["state"] or "").zfill(2) + (raw["place"] or "").zfill(5)
             else:
                 geoid = raw[geo_field]
             out.extend(self._normalize(geoid, raw, year))

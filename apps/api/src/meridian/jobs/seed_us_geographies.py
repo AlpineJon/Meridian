@@ -113,6 +113,100 @@ async def fetch_msas_from_census() -> list[dict[str, Any]]:
     return msas
 
 
+async def fetch_zctas_from_census() -> list[dict[str, Any]]:
+    """All ~33k US ZCTAs (ZIP code tabulation areas) with population.
+
+    ZCTAs cross county/state lines so parent_geoid is left NULL — they're
+    findable via search.
+    """
+    url = "https://api.census.gov/data/2023/acs/acs5"
+    params: dict[str, str] = {
+        "get": "NAME,B01003_001E",
+        "for": "zip code tabulation area:*",
+    }
+    api_key = get_settings().census_api_key
+    if api_key:
+        params["key"] = api_key
+
+    async with httpx.AsyncClient(timeout=120.0) as client:
+        r = await client.get(url, params=params)
+        r.raise_for_status()
+        data = r.json()
+
+    headers, *rows = data
+    name_idx = headers.index("NAME")
+    pop_idx = headers.index("B01003_001E")
+    geo_idx = headers.index("zip code tabulation area")
+
+    out: list[dict[str, Any]] = []
+    for row in rows:
+        zcta = row[geo_idx]
+        try:
+            pop = int(row[pop_idx]) if row[pop_idx] not in (None, "", "-666666666") else None
+        except (TypeError, ValueError):
+            pop = None
+        out.append({
+            "geoid": zcta,
+            "level": "zip",
+            "name": f"ZIP {zcta}",
+            "state_code": None,
+            "parent_geoid": None,  # ZCTAs cross state lines
+            "population": pop,
+            "centroid_lon": None,
+            "centroid_lat": None,
+        })
+    return out
+
+
+async def fetch_places_from_census() -> list[dict[str, Any]]:
+    """All ~28k US Census Designated Places (cities/towns/CDPs)."""
+    url = "https://api.census.gov/data/2023/acs/acs5"
+    params: dict[str, str] = {
+        "get": "NAME,B01003_001E",
+        "for": "place:*",
+        "in": "state:*",
+    }
+    api_key = get_settings().census_api_key
+    if api_key:
+        params["key"] = api_key
+
+    async with httpx.AsyncClient(timeout=120.0) as client:
+        r = await client.get(url, params=params)
+        r.raise_for_status()
+        data = r.json()
+
+    headers, *rows = data
+    name_idx = headers.index("NAME")
+    pop_idx = headers.index("B01003_001E")
+    state_idx = headers.index("state")
+    place_idx = headers.index("place")
+
+    valid_state_fips = set(STATE_NAMES_INCLUDED.keys())
+    out: list[dict[str, Any]] = []
+    for row in rows:
+        state_fips = (row[state_idx] or "").zfill(2)
+        place_fips = (row[place_idx] or "").zfill(5)
+        if state_fips not in valid_state_fips:
+            continue
+        geoid = state_fips + place_fips  # 7-digit place GEOID
+        try:
+            pop = int(row[pop_idx]) if row[pop_idx] not in (None, "", "-666666666") else None
+        except (TypeError, ValueError):
+            pop = None
+        state_obj = us.states.lookup(state_fips)
+        out.append({
+            "geoid": geoid,
+            "level": "place",
+            "name": row[name_idx],  # e.g. "Los Angeles city, California"
+            "state_code": state_obj.abbr if state_obj else None,
+            "parent_geoid": state_fips,
+            "population": pop,
+            "centroid_lon": None,
+            "centroid_lat": None,
+        })
+    return out
+
+
 async def fetch_counties_from_atlas() -> list[dict[str, Any]]:
     """Load county FIPS + name + parent state from us-atlas TopoJSON CDN."""
     url = "https://cdn.jsdelivr.net/npm/us-atlas@3/counties-10m.json"
@@ -195,18 +289,31 @@ async def run() -> None:
     counties_rows = await fetch_counties_from_atlas()
     print(f"    got {len(counties_rows)} counties")
 
-    # 4) Upsert
+    # 4) Places (Census Designated Places — cities/towns)
+    print("  fetching ALL US places from Census API…")
+    places_rows = await fetch_places_from_census()
+    print(f"    got {len(places_rows)} places")
+
+    # 5) ZCTAs (ZIP code tabulation areas)
+    print("  fetching ALL US ZCTAs from Census API…")
+    zctas_rows = await fetch_zctas_from_census()
+    print(f"    got {len(zctas_rows)} ZCTAs")
+
+    # 6) Upsert (states first for FK; ZCTAs last since no FK constraint)
     print("  upserting…")
     with psycopg.connect(_sync_url()) as conn:
-        # States must exist first because MSAs/counties FK to them via parent_geoid.
         n1 = upsert_geographies(conn, states_rows)
-        print(f"    ✓ states: {n1}")
+        print(f"    ✓ states:   {n1}")
         n2 = upsert_geographies(conn, msas_rows)
-        print(f"    ✓ MSAs:   {n2}")
+        print(f"    ✓ MSAs:     {n2}")
         n3 = upsert_geographies(conn, counties_rows)
         print(f"    ✓ counties: {n3}")
+        n4 = upsert_geographies(conn, places_rows)
+        print(f"    ✓ places:   {n4}")
+        n5 = upsert_geographies(conn, zctas_rows)
+        print(f"    ✓ ZCTAs:    {n5}")
         conn.commit()
-    print(f"\nTotal: {n1 + n2 + n3} geographies in Supabase.")
+    print(f"\nTotal: {n1 + n2 + n3 + n4 + n5} geographies in Supabase.")
 
 
 def main() -> None:
