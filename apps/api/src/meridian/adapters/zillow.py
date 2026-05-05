@@ -16,6 +16,7 @@ import csv
 import io
 import re
 from datetime import date
+from pathlib import Path
 
 import httpx
 from tenacity import retry, stop_after_attempt, wait_exponential
@@ -37,6 +38,11 @@ ZORI_ZIP_URL = (
     "Zip_zori_uc_sfrcondomfr_sm_month.csv"
 )
 
+_CACHE_DIR = Path.home() / "Desktop/meridian/data/raw/zillow"
+ZHVI_ZIP_CACHE = _CACHE_DIR / "zhvi_zip.csv"
+ZHVI_METRO_CACHE = _CACHE_DIR / "zhvi_metro.csv"
+ZORI_ZIP_CACHE = _CACHE_DIR / "zori_zip.csv"
+
 
 class ZillowAdapter(BaseAdapter):
     source = SourceName.zillow
@@ -51,18 +57,16 @@ class ZillowAdapter(BaseAdapter):
         if zip_zhvi:
             rows.extend(
                 await self._fetch_wide(
-                    ZHVI_ZIP_URL,
-                    geo_col="RegionName",
-                    pad_to=5,
+                    ZHVI_ZIP_URL, ZHVI_ZIP_CACHE,
+                    geo_col="RegionName", pad_to=5,
                     metric_key="median_home_value",
                 )
             )
         if zip_zori:
             rows.extend(
                 await self._fetch_wide(
-                    ZORI_ZIP_URL,
-                    geo_col="RegionName",
-                    pad_to=5,
+                    ZORI_ZIP_URL, ZORI_ZIP_CACHE,
+                    geo_col="RegionName", pad_to=5,
                     metric_key="median_gross_rent",
                 )
             )
@@ -70,12 +74,17 @@ class ZillowAdapter(BaseAdapter):
 
     @retry(stop=stop_after_attempt(3), wait=wait_exponential(min=1, max=8))
     async def _fetch_wide(
-        self, url: str, *, geo_col: str, pad_to: int, metric_key: str
+        self, url: str, cache: Path, *, geo_col: str, pad_to: int, metric_key: str
     ) -> list[FetchedRow]:
-        async with httpx.AsyncClient(timeout=300.0, follow_redirects=True) as client:
-            r = await client.get(url)
-            r.raise_for_status()
-            text = r.text
+        if cache.exists():
+            text = cache.read_text()
+        else:
+            async with httpx.AsyncClient(timeout=300.0, follow_redirects=True) as client:
+                r = await client.get(url)
+                r.raise_for_status()
+                text = r.text
+            cache.parent.mkdir(parents=True, exist_ok=True)
+            cache.write_text(text)
         return list(self._parse(text, geo_col=geo_col, pad_to=pad_to, metric_key=metric_key))
 
     def _parse(self, text: str, *, geo_col: str, pad_to: int, metric_key: str):

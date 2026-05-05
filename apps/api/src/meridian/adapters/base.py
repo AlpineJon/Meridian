@@ -49,7 +49,8 @@ class BaseAdapter(ABC):
         """
         ...
 
-    BATCH_SIZE = 5000
+    BATCH_SIZE = 2000
+    BATCH_DELAY_SEC = 0.25  # gentle on free-tier Supabase compute
 
     def upsert_rows(self, conn: psycopg.Connection, rows: Iterable[FetchedRow]) -> int:
         """Bulk upsert rows into `metrics`. Batched + commits per batch
@@ -81,6 +82,7 @@ class BaseAdapter(ABC):
                 "source": self.source.value,
             }
 
+        import time
         total = 0
         n = len(rows)
         for i in range(0, n, self.BATCH_SIZE):
@@ -93,6 +95,8 @@ class BaseAdapter(ABC):
             if (i // self.BATCH_SIZE) % 20 == 0 and i > 0:
                 pct = 100 * total / n
                 print(f"    ... {total:,}/{n:,} ({pct:.0f}%)")
+            if self.BATCH_DELAY_SEC and i + self.BATCH_SIZE < n:
+                time.sleep(self.BATCH_DELAY_SEC)
         return total
 
     def log_run(

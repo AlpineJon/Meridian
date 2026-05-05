@@ -18,6 +18,7 @@ from __future__ import annotations
 import csv
 import io
 from datetime import date
+from pathlib import Path
 from typing import Iterable
 
 import httpx
@@ -27,11 +28,13 @@ from meridian.adapters.base import BaseAdapter, FetchedRow
 from meridian.models.metric import SourceName
 
 # Realtor.com -> our metric_keys.
-# Each tuple: (csv column, our metric_key, transform)
-_FLOAT = lambda v: float(v) if v not in ("", None) else None  # noqa: E731
-
 COUNTY_URL = "https://econdata.s3.amazonaws.com/Reports/Core/RDC_Inventory_Core_Metrics_County_History.csv"
 METRO_URL = "https://econdata.s3.amazonaws.com/Reports/Core/RDC_Inventory_Core_Metrics_Metro_History.csv"
+
+# Local cache (downloaded by background job). If present, skip the network.
+_CACHE_DIR = Path.home() / "Desktop/meridian/data/raw/realtor"
+COUNTY_CACHE = _CACHE_DIR / "county_history.csv"
+METRO_CACHE = _CACHE_DIR / "metro_history.csv"
 
 # (csv_col, metric_key)
 COLUMN_MAP: list[tuple[str, str]] = [
@@ -53,17 +56,28 @@ class RealtorAdapter(BaseAdapter):
     ) -> list[FetchedRow]:
         rows: list[FetchedRow] = []
         if "county" in levels:
-            rows.extend(await self._fetch_csv(COUNTY_URL, geo_col="county_fips", pad_to=5))
+            rows.extend(
+                await self._fetch_csv(COUNTY_URL, COUNTY_CACHE, geo_col="county_fips", pad_to=5)
+            )
         if "metro" in levels:
-            rows.extend(await self._fetch_csv(METRO_URL, geo_col="cbsa_code", pad_to=5))
+            rows.extend(
+                await self._fetch_csv(METRO_URL, METRO_CACHE, geo_col="cbsa_code", pad_to=5)
+            )
         return rows
 
     @retry(stop=stop_after_attempt(3), wait=wait_exponential(min=1, max=8))
-    async def _fetch_csv(self, url: str, *, geo_col: str, pad_to: int) -> list[FetchedRow]:
-        async with httpx.AsyncClient(timeout=180.0) as client:
-            r = await client.get(url)
-            r.raise_for_status()
-            text = r.text
+    async def _fetch_csv(
+        self, url: str, cache: Path, *, geo_col: str, pad_to: int
+    ) -> list[FetchedRow]:
+        if cache.exists():
+            text = cache.read_text()
+        else:
+            async with httpx.AsyncClient(timeout=180.0) as client:
+                r = await client.get(url)
+                r.raise_for_status()
+                text = r.text
+            cache.parent.mkdir(parents=True, exist_ok=True)
+            cache.write_text(text)
         return list(self._parse(text, geo_col=geo_col, pad_to=pad_to))
 
     # Keep only the most recent N months of historical data — saves a few
