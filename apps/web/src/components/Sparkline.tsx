@@ -1,7 +1,7 @@
 "use client";
 
 type Props = {
-  values: number[];
+  values?: number[];
   width?: number;
   height?: number;
   /** "good" = up is good, "bad" = up is bad. Drives line color tone. */
@@ -10,7 +10,7 @@ type Props = {
 };
 
 export function Sparkline({ values, width = 120, height = 32, direction = "neutral", className }: Props) {
-  if (values.length < 2) return null;
+  if (!values || values.length < 2) return null;
   const min = Math.min(...values);
   const max = Math.max(...values);
   const range = max - min || 1;

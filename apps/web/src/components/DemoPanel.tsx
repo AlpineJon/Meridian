@@ -9,7 +9,7 @@ export function DemoPanel({ snap }: { snap: GeoSnapshot }) {
     <Panel
       title="Demographics & economy"
       question="Is the underlying population and income base supporting demand?"
-      rightSlot={`Census ACS · BLS · ${snap.freshness[0].updatedAt}`}
+      rightSlot={`Census ACS · BLS · ${snap.freshness[0]?.updatedAt ?? ""}`}
     >
       <MetricRow label="Population" value={fmtNum(d.population)} />
       <MetricRow

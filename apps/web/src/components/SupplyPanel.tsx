@@ -9,12 +9,12 @@ export function SupplyPanel({ snap }: { snap: GeoSnapshot }) {
     <Panel
       title="Supply & inventory"
       question="Is inventory loosening or tightening?"
-      rightSlot={`Realtor.com · BPS · ${snap.freshness[1].updatedAt}`}
+      rightSlot={`Realtor.com · BPS · ${snap.freshness[1]?.updatedAt ?? snap.freshness[0]?.updatedAt ?? ""}`}
     >
       <MetricRow
         label="Active listings"
         value={fmtNum(s.activeListings)}
-        trend={s.activeListingsTrend.values}
+        trend={s.activeListingsTrend?.values}
         trendDirection="bad"
       />
       <MetricRow
@@ -28,7 +28,7 @@ export function SupplyPanel({ snap }: { snap: GeoSnapshot }) {
       <MetricRow
         label="Months supply"
         value={fmtMonths(s.monthsSupply)}
-        trend={s.monthsSupplyTrend.values}
+        trend={s.monthsSupplyTrend?.values}
         trendDirection="bad"
         delta={{
           text: s.monthsSupply > 4 ? "loose" : s.monthsSupply > 3 ? "balanced" : "tight",
@@ -38,7 +38,7 @@ export function SupplyPanel({ snap }: { snap: GeoSnapshot }) {
       <MetricRow
         label="Median DOM"
         value={fmtDays(s.medianDom)}
-        trend={s.medianDomTrend.values}
+        trend={s.medianDomTrend?.values}
         trendDirection="bad"
       />
       <MetricRow
@@ -52,7 +52,7 @@ export function SupplyPanel({ snap }: { snap: GeoSnapshot }) {
       <MetricRow
         label="Permits 1-unit (12mo)"
         value={fmtNum(s.permits1Unit12mo)}
-        trend={s.permitsTrend.values}
+        trend={s.permitsTrend?.values}
         trendDirection="good"
       />
       <MetricRow label="Permits 2-4 unit (12mo)" value={fmtNum(s.permits24Unit12mo)} />

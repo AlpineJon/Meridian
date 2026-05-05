@@ -10,11 +10,13 @@ export function PricingPanel({ snap }: { snap: GeoSnapshot }) {
     <Panel
       title="Pricing & demand"
       question="Where are prices headed and how fast are they moving?"
-      rightSlot={`Realtor.com · ${snap.freshness[1].updatedAt}`}
+      rightSlot={`Realtor.com · ${snap.freshness[1]?.updatedAt ?? snap.freshness[0]?.updatedAt ?? ""}`}
     >
-      <div className="px-2 pt-2">
-        <PriceTrendChart months={p.salePriceTrend.months} values={p.salePriceTrend.values} height={120} />
-      </div>
+      {p.salePriceTrend ? (
+        <div className="px-2 pt-2">
+          <PriceTrendChart months={p.salePriceTrend.months} values={p.salePriceTrend.values} height={120} />
+        </div>
+      ) : null}
       <MetricRow
         label="Median sale price"
         value={fmtUsd(p.medianSalePrice)}

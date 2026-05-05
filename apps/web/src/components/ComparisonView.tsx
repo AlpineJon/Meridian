@@ -1,6 +1,8 @@
 "use client";
 
-import { allSnapshots } from "@/lib/seed";
+import { useQueries } from "@tanstack/react-query";
+import type { GeoSnapshot } from "@/lib/seed";
+import { fetchSnapshot } from "@/lib/api";
 import { fmtDays, fmtMonths, fmtPct, fmtPctDelta, fmtUsd } from "@/lib/format";
 import { cn } from "@/lib/cn";
 
@@ -23,10 +25,38 @@ const yoyTone = (n: number) =>
   n > 0.02 ? "text-signal-good" : n < 0 ? "text-signal-bad" : "text-ink-700";
 
 export function ComparisonView({ highlightGeoid }: { highlightGeoid: string }) {
-  const rows = allSnapshots().filter((s) => COMPARE_GEOIDS.includes(s.geo.geoid));
+  const queries = useQueries({
+    queries: COMPARE_GEOIDS.map((geoid) => ({
+      queryKey: ["snapshot", geoid],
+      queryFn: () => fetchSnapshot(geoid),
+    })),
+  });
+
+  const rows = queries
+    .map((q) => q.data)
+    .filter((d): d is GeoSnapshot => d !== null && d !== undefined);
+
+  const isLoading = queries.some((q) => q.isLoading);
+  const error = queries.find((q) => q.isError)?.error;
 
   const cell = "px-3 py-1.5 font-mono text-[12px] tabular-nums whitespace-nowrap";
   const label = "px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-ink-500 sticky left-0 bg-white";
+
+  if (isLoading && rows.length === 0) {
+    return (
+      <section className="panel p-6 text-center text-[12px] text-ink-500">
+        Loading comparison snapshots…
+      </section>
+    );
+  }
+  if (error) {
+    return (
+      <section className="panel p-6 text-center">
+        <h3 className="text-[14px] font-semibold text-signal-bad">API error</h3>
+        <p className="mt-2 font-mono text-2xs text-ink-400">{String(error)}</p>
+      </section>
+    );
+  }
 
   return (
     <section className="panel">

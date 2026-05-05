@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { LeftRail } from "@/components/LeftRail";
 import { TopBar } from "@/components/TopBar";
 import { CreditSummary } from "@/components/CreditSummary";
@@ -10,7 +11,8 @@ import { DemoPanel } from "@/components/DemoPanel";
 import { ComparisonView } from "@/components/ComparisonView";
 import { FreshnessFooter } from "@/components/FreshnessFooter";
 import { MapView } from "@/components/MapView";
-import { findGeo, getSnapshot, GEOGRAPHIES } from "@/lib/seed";
+import { findGeo, GEOGRAPHIES } from "@/lib/seed";
+import { fetchSnapshot } from "@/lib/api";
 
 const TABS = [
   { id: "credit", label: "Credit summary" },
@@ -27,7 +29,12 @@ export default function Page() {
   const [tab, setTab] = useState("credit");
 
   const geo = findGeo(selectedGeoid)!;
-  const snap = getSnapshot(selectedGeoid);
+
+  const snapQuery = useQuery({
+    queryKey: ["snapshot", selectedGeoid],
+    queryFn: () => fetchSnapshot(selectedGeoid),
+  });
+  const snap = snapQuery.data ?? null;
 
   const parentChain = useMemo(() => {
     const chain: { name: string; geoid: string }[] = [];
@@ -64,13 +71,28 @@ export default function Page() {
             <MapView selectedGeoid={selectedGeoid} onSelect={handleSelect} />
           ) : tab === "compare" ? (
             <ComparisonView highlightGeoid={selectedGeoid} />
+          ) : snapQuery.isLoading ? (
+            <div className="panel mx-auto mt-12 max-w-md p-8 text-center">
+              <div className="text-[12px] text-ink-500">Loading snapshot from Meridian API…</div>
+            </div>
+          ) : snapQuery.isError ? (
+            <div className="panel mx-auto mt-12 max-w-md p-8 text-center">
+              <h2 className="text-[14px] font-semibold text-signal-bad">API error</h2>
+              <p className="mt-2 text-[12px] text-ink-500">
+                Could not reach the Meridian API at{" "}
+                <span className="font-mono">localhost:8001</span>.
+              </p>
+              <p className="mt-2 font-mono text-2xs text-ink-400">
+                {String(snapQuery.error)}
+              </p>
+            </div>
           ) : !snap ? (
             <div className="panel mx-auto mt-12 max-w-md p-8 text-center">
               <h2 className="text-[14px] font-semibold text-ink-900">No snapshot for this geo yet</h2>
               <p className="mt-2 text-[12px] text-ink-500">
-                Seed data covers Baton Rouge MSA, comparison MSAs (Birmingham, Memphis, Jackson,
-                Mobile, Shreveport), and ZIP 70809. The full ingestion pipeline (Phase 2) will
-                populate every geography from upstream sources.
+                Seeded data covers Baton Rouge MSA, comparison MSAs (Birmingham, Memphis,
+                Jackson, Mobile, Shreveport), and ZIP 70809. Phase 2 ingestion will populate every
+                geography from upstream sources.
               </p>
               <p className="mt-3 text-[11px] text-ink-400">
                 Try the <span className="font-semibold">Comparison</span> tab — it works regardless

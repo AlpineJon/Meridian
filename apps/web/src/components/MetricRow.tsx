@@ -6,7 +6,7 @@ type Props = {
   value: string;
   /** Secondary value, e.g. YoY delta */
   delta?: { text: string; tone: "good" | "bad" | "neutral" };
-  trend?: number[];
+  trend?: number[] | undefined;
   /** Direction interpretation for sparkline color */
   trendDirection?: "good" | "bad" | "neutral";
   className?: string;

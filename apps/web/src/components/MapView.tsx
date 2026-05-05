@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import maplibregl, { type ExpressionSpecification } from "maplibre-gl";
 import { feature } from "topojson-client";
 import type { Feature, FeatureCollection, Geometry } from "geojson";
+import { useQuery } from "@tanstack/react-query";
 
 // Loose Topology shape — avoids pulling topojson-specification just for types
 type TopoJSON = {
@@ -13,7 +14,8 @@ type TopoJSON = {
 };
 import "maplibre-gl/dist/maplibre-gl.css";
 
-import { allSnapshots, GEOGRAPHIES, type GeoSnapshot } from "@/lib/seed";
+import { GEOGRAPHIES } from "@/lib/seed";
+import { fetchSummaries, type GeoSummary } from "@/lib/api";
 import { COUNTY_TO_MSA, GEO_CENTROIDS, ZCTA_BBOXES } from "@/lib/geo-crosswalk";
 import {
   colorFor,
@@ -44,8 +46,6 @@ type Props = {
   onSelect: (geoid: string) => void;
 };
 
-type SnapByGeoid = Map<string, GeoSnapshot>;
-
 export function MapView({ selectedGeoid, onSelect }: Props) {
   const mapRef = useRef<maplibregl.Map | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -62,14 +62,20 @@ export function MapView({ selectedGeoid, onSelect }: Props) {
   } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  // Snapshot lookup by geoid
-  const snapByGeoid: SnapByGeoid = useMemo(() => {
-    const m = new Map<string, GeoSnapshot>();
-    for (const s of allSnapshots()) m.set(s.geo.geoid, s);
-    return m;
-  }, []);
+  // Pull lightweight summaries from /summaries — one row per geography.
+  const summariesQuery = useQuery({
+    queryKey: ["summaries"],
+    queryFn: fetchSummaries,
+  });
 
-  // ---- init map ----
+  // geoid -> signals lookup, built from API summaries
+  const summaryByGeoid = useMemo(() => {
+    const m = new Map<string, GeoSummary>();
+    for (const s of summariesQuery.data ?? []) m.set(s.geoid, s);
+    return m;
+  }, [summariesQuery.data]);
+
+  // ---- init map (once on mount; summaries are applied via setData in the next effect) ----
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
     const map = new maplibregl.Map({
@@ -105,19 +111,19 @@ export function MapView({ selectedGeoid, onSelect }: Props) {
           { name: string }
         >;
 
-        // Annotate each county feature with msaGeoid + metric snapshot
+        // Annotate each county feature with msaGeoid + metric values from API summaries
         for (const f of countiesGeo.features) {
           const fips = String((f as unknown as { id: string }).id).padStart(5, "0");
           const msaGeoid = COUNTY_TO_MSA[fips];
           (f.properties as Record<string, unknown>).fips = fips;
           (f.properties as Record<string, unknown>).msaGeoid = msaGeoid ?? null;
-          if (msaGeoid && snapByGeoid.has(msaGeoid)) {
-            const snap = snapByGeoid.get(msaGeoid)!;
-            (f.properties as Record<string, unknown>).liquidityScore = snap.signals.liquidityScore;
-            (f.properties as Record<string, unknown>).demandPressure = snap.signals.demandPressure;
-            (f.properties as Record<string, unknown>).distressIndicator = snap.signals.distressIndicator;
-            (f.properties as Record<string, unknown>).marketTier = snap.signals.marketTier;
-            (f.properties as Record<string, unknown>).msaName = snap.geo.name;
+          if (msaGeoid && summaryByGeoid.has(msaGeoid)) {
+            const summ = summaryByGeoid.get(msaGeoid)!;
+            (f.properties as Record<string, unknown>).liquidityScore = summ.signals.liquidityScore;
+            (f.properties as Record<string, unknown>).demandPressure = summ.signals.demandPressure;
+            (f.properties as Record<string, unknown>).distressIndicator = summ.signals.distressIndicator;
+            (f.properties as Record<string, unknown>).marketTier = summ.signals.marketTier;
+            (f.properties as Record<string, unknown>).msaName = summ.name;
           }
         }
         for (const f of statesGeo.features) {
@@ -140,6 +146,9 @@ export function MapView({ selectedGeoid, onSelect }: Props) {
         map.addSource("states", { type: "geojson", data: statesGeo });
         map.addSource("counties", { type: "geojson", data: countiesGeo });
         map.addSource("zctas", { type: "geojson", data: zctaGeo });
+        // Stash so the summaries-effect can re-annotate without re-fetching TIGER
+        (map as unknown as { _meridianCountiesGeo?: FeatureCollection })
+          ._meridianCountiesGeo = countiesGeo;
 
         // ---- COUNTY fill ----
         map.addLayer({
@@ -258,6 +267,41 @@ export function MapView({ selectedGeoid, onSelect }: Props) {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // ---- re-annotate counties source whenever summaries change ----
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !summariesQuery.data) return;
+    const src = map.getSource("counties") as maplibregl.GeoJSONSource | undefined;
+    if (!src) return;
+    // Get the existing GeoJSON (we stored it on the map under _meridianCountiesGeo)
+    const geo = (map as unknown as { _meridianCountiesGeo?: FeatureCollection }).
+      _meridianCountiesGeo;
+    if (!geo) return;
+    for (const f of geo.features) {
+      const fips = String((f as unknown as { id: string }).id ?? f.properties?.fips ?? "").padStart(5, "0");
+      const msaGeoid = COUNTY_TO_MSA[fips];
+      const props = (f.properties as Record<string, unknown>) ?? {};
+      props.fips = fips;
+      props.msaGeoid = msaGeoid ?? null;
+      const summ = msaGeoid ? summaryByGeoid.get(msaGeoid) : undefined;
+      if (summ) {
+        props.liquidityScore = summ.signals.liquidityScore;
+        props.demandPressure = summ.signals.demandPressure;
+        props.distressIndicator = summ.signals.distressIndicator;
+        props.marketTier = summ.signals.marketTier;
+        props.msaName = summ.name;
+      } else {
+        delete props.liquidityScore;
+        delete props.demandPressure;
+        delete props.distressIndicator;
+        delete props.marketTier;
+        delete props.msaName;
+      }
+      f.properties = props;
+    }
+    src.setData(geo);
+  }, [summariesQuery.data, summaryByGeoid]);
 
   // ---- update fill color when metric changes ----
   useEffect(() => {
@@ -415,6 +459,14 @@ export function MapView({ selectedGeoid, onSelect }: Props) {
       {error ? (
         <div className="absolute inset-0 z-30 flex items-center justify-center bg-white/80">
           <div className="panel max-w-sm p-4 text-[12px] text-signal-bad">{error}</div>
+        </div>
+      ) : null}
+
+      {summariesQuery.isLoading ? (
+        <div className="absolute inset-0 z-20 flex items-center justify-center bg-ink-50">
+          <div className="panel px-4 py-3 text-[12px] text-ink-500">
+            Loading geographies from Meridian API…
+          </div>
         </div>
       ) : null}
     </div>
